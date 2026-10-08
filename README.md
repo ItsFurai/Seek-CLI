@@ -4,7 +4,9 @@ Fast file search and indexing with a terminal UI, written in Go. The command is 
 
 ## Install
 
-Needs Go 1.24 or newer. There are no C dependencies, so it builds the same way on Windows, macOS and Linux (x86-64 and ARM64).
+**Download:** get a ready-to-run build for Windows, macOS or Linux from [Releases](https://github.com/ItsFurai/Seek-CLI/releases/latest), unzip it, and put the folder on your PATH. On macOS, run `xattr -d com.apple.quarantine seek` the first time, because the builds aren't signed.
+
+**Build from source:** needs Go 1.24 or newer. There are no C dependencies, so it builds the same way on Windows, macOS and Linux (x86-64 and ARM64).
 
 ```bash
 git clone https://github.com/ItsFurai/Seek-CLI.git

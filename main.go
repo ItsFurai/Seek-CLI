@@ -29,6 +29,7 @@ USAGE
                                                      --sort relevance|newest|largest
   seek grep <text> [filters] search inside files    -r  regex   -n N  limit (default 500)
   seek stats                show index information
+  seek --version
 
 QUERY SYNTAX
   foo bar      fuzzy terms (all must match)     'foo  exact     ^foo  name starts with
@@ -38,6 +39,9 @@ QUERY SYNTAX
 
 Index file: %s  (override with SEEK_INDEX)
 `
+
+// version is set at build time: -ldflags "-X main.version=v1.2.3"
+var version = "dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -51,6 +55,9 @@ func run(args []string) error {
 		switch args[0] {
 		case "-h", "--help", "help":
 			fmt.Printf(usage, indexPath())
+			return nil
+		case "-v", "--version", "version":
+			fmt.Println("seek", version)
 			return nil
 		case "index":
 			return cmdIndex(args[1:])
