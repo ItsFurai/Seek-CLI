@@ -8,7 +8,6 @@ Fuzzy-find any file across all your drives in milliseconds, search inside files,
 [![CI](https://github.com/ItsFurai/Seek-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/ItsFurai/Seek-CLI/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ItsFurai/Seek-CLI)](https://github.com/ItsFurai/Seek-CLI/releases/latest)
 [![Go version](https://img.shields.io/github/go-mod/go-version/ItsFurai/Seek-CLI)](go.mod)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ItsFurai/Seek-CLI)](https://goreportcard.com/report/github.com/ItsFurai/Seek-CLI)
 [![License: MIT](https://img.shields.io/github/license/ItsFurai/Seek-CLI)](LICENSE)
 
 <img src="docs/screenshot.svg" alt="seek searching for reports changed this week, with a syntax-highlighted preview of report.go" width="900">
