@@ -4,6 +4,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: build
+      include: scope # build(deps): …
     groups:
       go-dependencies:
         patterns: ["*"]
@@ -11,6 +14,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: ci
+      include: scope # ci(deps): …
     groups:
       actions:
         patterns: ["*"]

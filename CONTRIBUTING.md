@@ -44,6 +44,40 @@ Everything lives in `cmd/seek`:
 | `tui.go`, `style.go` | the terminal UI, layout, colors and keys |
 | `platform_*.go` | OS-specific bits: drives, opening and revealing files |
 
+## Commit messages
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): a type, an optional scope, and a short summary in the imperative mood.
+
+```
+<type>(<optional scope>): <summary>
+
+<optional body: what changed and why>
+```
+
+| Type | Use it for |
+|---|---|
+| `feat` | a new feature users will notice |
+| `fix` | a bug fix |
+| `perf` | a speed or memory improvement |
+| `refactor` | a code change that doesn't change behavior |
+| `test` | adding or fixing tests |
+| `docs` | README, guides, changelog and other documentation |
+| `build` | Go version, dependencies, build settings |
+| `ci` | GitHub Actions workflows |
+| `chore` | anything else, such as release prep: `chore(release): v1.2.3` |
+
+Examples:
+
+```
+feat: add is:image and other file-kind filters
+fix(watch): catch changes made right after startup
+docs: add a color legend to the README
+```
+
+Keep the summary under about 70 characters and don't end it with a period. Use the body to explain *why* when it isn't obvious. For a breaking change, add `!` after the type (`feat!: …`) and describe the change in the body.
+
+Earlier commits, up to v0.3.1, predate this convention.
+
 ## Before you open a pull request
 
 CI runs these on Windows, macOS and Linux with Go 1.24 and the latest Go. Running them locally first saves a round trip:
