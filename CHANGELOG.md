@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-08
+
 ### Added
 - A color legend for result rows on the `F1` help screen and in the README.
 - Install with `go install github.com/ItsFurai/Seek-CLI/cmd/seek@latest`, which now produces a binary named `seek`. `seek --version` reports the installed version.
@@ -59,7 +61,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Prebuilt downloads for Windows, macOS and Linux (x86-64 and ARM64) with checksums.
 - Works with Go 1.24 or newer, and CI builds and tests on Windows, macOS and Linux.
 
-[Unreleased]: https://github.com/ItsFurai/Seek-CLI/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ItsFurai/Seek-CLI/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/ItsFurai/Seek-CLI/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ItsFurai/Seek-CLI/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ItsFurai/Seek-CLI/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ItsFurai/Seek-CLI/releases/tag/v0.1.0
