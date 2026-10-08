@@ -59,3 +59,7 @@ seek stats
 - **Content search:** a parallel grep first scans each file whole for the literal text and skips files without it. Binary files are skipped, and results stream into the UI while the search runs.
 
 Build: `go build -ldflags="-s -w" -o seek.exe .` · Index location: `%LOCALAPPDATA%\seek\index.bin` (override with `SEEK_INDEX`).
+
+## License
+
+[MIT](LICENSE)

@@ -30,7 +30,7 @@ jobs:
             bin=seek; [ "$os" = windows ] && bin=seek.exe
             mkdir -p "build/$name"
             GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "build/$name/$bin" .
-            cp README.md "build/$name/"
+            cp README.md LICENSE "build/$name/"
             if [ "$os" = windows ]; then
               (cd build && zip -qr "../dist/$name.zip" "$name")
             else
