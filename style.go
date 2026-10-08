@@ -58,14 +58,11 @@ func init() {
 			extCat[e] = c
 		}
 	}
-	add(catCode, `go rs c h cpp hpp cc cs java kt kts scala py rb php js mjs cjs ts tsx jsx vue svelte swift m mm
-		lua pl sh bash zsh ps1 psm1 bat cmd sql r dart zig nim ex exs erl hs ml fs clj json yaml yml toml xml
-		html htm css scss sass less ini cfg conf gradle cmake mk makefile dockerfile proto graphql tf`)
-	add(catDoc, `txt md markdown rst org pdf doc docx odt rtf xls xlsx csv tsv ods ppt pptx odp epub log tex`)
-	add(catImage, `png jpg jpeg gif bmp ico svg webp tif tiff heic psd raw avif`)
-	add(catMedia, `mp3 wav flac ogg m4a aac wma mp4 mkv avi mov wmv webm flv m4v`)
-	add(catArchive, `zip 7z rar gz tgz bz2 xz zst tar iso img dmg cab jar`)
-	add(catExec, `exe msi dll sys com lnk appx msix`)
+	kindCat := map[string]category{"code": catCode, "doc": catDoc, "image": catImage,
+		"audio": catMedia, "video": catMedia, "archive": catArchive, "app": catExec}
+	for kind, exts := range kindExts {
+		add(kindCat[kind], exts)
+	}
 }
 
 func categoryOf(name string, isDir bool) category {

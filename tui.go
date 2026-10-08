@@ -119,7 +119,7 @@ type model struct {
 func newModel(ix *Index, upd *Updater, initial string, mode uiMode, pick bool) model {
 	ti := textinput.New()
 	ti.Prompt = ""
-	ti.Placeholder = "search files…   try: report ext:pdf mod:<30d   ·   tab: search inside files"
+	ti.Placeholder = "search files…   try: report .pdf >1mb week   ·   photos/   ·   tab: search inside files"
 	ti.PlaceholderStyle = sFaint
 	ti.TextStyle = lipgloss.NewStyle().Foreground(cText)
 	ti.Cursor.Style = lipgloss.NewStyle().Foreground(cAccent)
@@ -651,21 +651,34 @@ func (m *model) headerView() string {
 func (m *model) inputView() string {
 	inner := m.w - 2
 	prompt := lipgloss.NewStyle().Foreground(cAccent).Bold(true).Render("❯ ")
-	var chips []string
-	if m.q != nil {
-		if m.q.Err != "" {
-			chips = append(chips, sErr.Render("⚠ "+m.q.Err))
-		} else if m.q.HasFilters() {
-			chips = append(chips, sKey.Render("⧩ filtered"))
-		}
-	}
+	chip := ""
 	if m.regex {
-		chips = append(chips, sKey.Render(".* regex"))
+		chip = sKey.Render(".* regex")
 	}
-	chip := strings.Join(chips, "  ")
 	m.input.Width = max(5, inner-4-lipgloss.Width(chip)-2)
 	line := padBetween(" "+prompt+m.input.View(), chip+" ", inner)
-	return drawBox("", "", []string{line}, m.w, 3, true)
+	box := drawBox("", "", []string{line}, m.w, 3, true)
+
+	// The bottom border spells out how the query was understood.
+	var label string
+	switch {
+	case m.q == nil:
+	case m.q.Err != "":
+		label = sErr.Render(" ⚠ " + m.q.Err + " ")
+	case m.q.HasFilters() || len(m.q.Labels) > len(m.q.Terms) || hasSpecialTerm(m.q):
+		prefix := ""
+		if m.mode == modeContent && m.q.HasTerms() {
+			prefix = "text "
+		}
+		label = sDim.Render(" "+prefix) + lipgloss.NewStyle().Foreground(cAccent2).Render(m.q.Describe()) + " "
+	}
+	if label == "" {
+		return box
+	}
+	label = ansi.Truncate(label, max(0, inner-4), "… ")
+	bs := lipgloss.NewStyle().Foreground(cAccent)
+	bottom := bs.Render("╰─") + label + bs.Render(strings.Repeat("─", max(0, inner-1-lipgloss.Width(label)))+"╯")
+	return box[:strings.LastIndexByte(box, '\n')+1] + bottom
 }
 
 func (m *model) listView(w int) string {
@@ -713,6 +726,15 @@ func (m *model) listView(w int) string {
 		pos = fmt.Sprintf("%d/%d", m.cursor+1, n)
 	}
 	return drawBox(title, pos, lines, w, h, true)
+}
+
+func hasSpecialTerm(q *Query) bool {
+	for _, t := range q.Terms {
+		if t.kind != termFuzzy {
+			return true
+		}
+	}
+	return false
 }
 
 func rowStyle(sel bool) lipgloss.Style {
@@ -940,14 +962,17 @@ func (m model) helpView() string {
 	sec := func(s string) string { return "\n " + sPaneTitle.Render(s) }
 	lines := []string{
 		sec("Search syntax"),
-		k("foo bar", "fuzzy match all terms against the path (basename ranks higher)"),
-		k("'foo", "exact substring          ^foo  name starts with"),
-		k("foo$", "path ends with           !foo  exclude paths containing foo"),
-		k("ext:go,rs", "file extension(s)"),
-		k("is:dir / is:file", "only folders / only files"),
-		k("size:>10mb", "size filter: >, <, or 1mb..1gb (b, kb, mb, gb, tb)"),
-		k("mod:<7d", "modified within 7 days; mod:>1y older than a year (min,h,d,w,mo,y)"),
-		k("in:projects", "folder name in path; in:E:\\work for a path prefix"),
+		k("foo bar", "fuzzy match all words against the path (file names rank higher)"),
+		k(".pdf  .jpg,.png", "file type by extension"),
+		k(">10mb  <1kb", "bigger / smaller than (also 1mb..1gb)"),
+		k("today  yesterday", "changed today / yesterday;  week  month  year  = in the last 7/30/365 days"),
+		k("<7d  >1y", "changed in the last 7 days / not changed for a year (min h d w mo y)"),
+		k("photos/", "folders named like photos"),
+		k(`E:\work  ~\Docs`, "only inside that folder"),
+		k("is:image", "also video, audio, doc, code, archive, app, dir, file"),
+		k("'foo  ^foo  foo$", "exactly foo / name starts with foo / ends with foo   ('today = the word)"),
+		k("!foo", "exclude paths containing foo"),
+		k("", "the line under the search box shows how seek read your query"),
 		sec("Keys"),
 		k("↑ ↓ / ^p ^n", "move           pgup pgdn  page"),
 		k("enter", "open with default app (click a selected row too)"),

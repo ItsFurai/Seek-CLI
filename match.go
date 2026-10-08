@@ -173,6 +173,16 @@ func scoreEntry(ix *Index, e *Entry, q *Query) (int, bool) {
 			}
 			total += len(t.text) * 16
 			inBase = inBase && len(t.text) <= len(base)
+		case termName:
+			orig := ix.arena[e.Off : e.Off+uint32(e.Len)]
+			s, ok := fuzzy(base, orig[e.Base:], t.text, nil)
+			if !ok {
+				return 0, false
+			}
+			total += s + 40
+			if len(base) == len(t.text) {
+				total += 25
+			}
 		default:
 			orig := ix.arena[e.Off : e.Off+uint32(e.Len)]
 			full, ok := fuzzy(low, orig, t.text, nil)
@@ -304,6 +314,12 @@ func MatchPositions(ix *Index, e *Entry, q *Query) map[int]bool {
 		case termPrefix:
 			for i := range t.text {
 				pos = append(pos, base+i)
+			}
+		case termName:
+			var p []int
+			fuzzy(low[base:], orig[base:], t.text, &p)
+			for _, x := range p {
+				pos = append(pos, x+base)
 			}
 		case termFuzzy:
 			// mirror scoreEntry's choice between basename and full path

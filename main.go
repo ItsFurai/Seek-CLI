@@ -35,11 +35,16 @@ USAGE
   seek --version
 
 QUERY SYNTAX
-  foo bar      fuzzy terms (all must match)     'foo  exact     ^foo  name starts with
-  foo$         ends with                        !foo  exclude
-  ext:go,rs    is:dir  is:file    size:>10mb  size:1mb..1gb    mod:<7d  mod:>1y
-  in:projects  (folder name)      in:E:\work  (path prefix)
-
+  report budget    fuzzy words (all must match; file names rank higher)
+  .pdf .jpg,.png   file type          is:image  (video audio doc code archive app dir file)
+  >10mb <1kb       size               1mb..1gb
+  today yesterday  changed on day     week month year  (last 7/30/365 days)
+  <7d >1y          changed within / not changed for   (min h d w mo y)
+  photos/          folders named like photos
+  E:\work ~\Docs   only inside that folder
+  'foo ^foo foo$   exact / name starts with / ends with      !foo  exclude
+  The older key:value forms still work: ext:pdf size:>10mb mod:<7d in:E:\work
+  In a shell, quote > and < so they aren't redirects:  seek find report "'>10mb'"
 Index file: %s  (override with SEEK_INDEX)
 `
 

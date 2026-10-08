@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- **Simpler query shorthands** that need no `key:` prefix: `.pdf` for file types, `>10mb` / `<1kb` / `1mb..1gb` for size, `<7d` / `>1y` for dates, `today`, `yesterday`, `week`, `month` and `year`, `photos/` for folders, and `E:\work` or `~\Documents` to search inside a folder.
+- **File kinds:** `is:image`, `is:video`, `is:audio`, `is:doc`, `is:code`, `is:archive` and `is:app`, using the same groups as the result colors.
+- **The search box explains your query** in its bottom border (for example `"report" · PDF files · over 10 MB · changed this week`), and shows errors in the same place.
+
+### Changed
+- A folder filter such as `E:\work` now matches only that folder, not `E:\workshop`.
+- Extension filters also match dotfiles, so `.gitignore` finds files named `.gitignore`.
+- The words `today`, `yesterday`, `week`, `month` and `year` are now filters; put a `'` in front (`'today`) to search for the word itself.
+
 ## [0.2.0] - 2026-10-08
 
 ### Added

@@ -36,15 +36,24 @@ seek watch              # keep the index current in the background (Ctrl+C to st
 
 ## Query syntax
 
-| query | meaning |
+Type words to fuzzy-match file names. Add any of these to narrow the results down:
+
+| type | meaning |
 |---|---|
-| `foo bar` | fuzzy; every term must match. Matches in the file name rank higher |
-| `'foo` / `^foo` / `foo$` / `!foo` | exact substring / name starts with / path ends with / exclude |
-| `ext:go,rs` | extensions |
-| `is:dir`, `is:file` | entry type |
-| `size:>10mb`, `size:1mb..1gb` | size |
-| `mod:<7d`, `mod:>1y` | modified within / older than (`min h d w mo y`) |
-| `in:projects`, `in:E:\work` | folder name in the path / path prefix |
+| `report budget` | fuzzy words; all must match, and matches in the file name rank higher |
+| `.pdf` · `.jpg,.png` | file type |
+| `is:image` | a whole kind: `image` `video` `audio` `doc` `code` `archive` `app` (or `dir`, `file`) |
+| `>10mb` · `<1kb` · `1mb..1gb` | size |
+| `today` · `yesterday` · `week` · `month` · `year` | changed today, yesterday, or in the last 7 / 30 / 365 days |
+| `<7d` · `>1y` | changed in the last 7 days / not changed for a year (`min h d w mo y`) |
+| `photos/` | folders named like "photos" |
+| `E:\work` · `~\Documents` | only inside that folder |
+| `in:projects` | anywhere under a folder whose name contains "projects" |
+| `'foo` · `^foo` · `foo$` · `!foo` | exact text · name starts with · path ends with · exclude |
+
+The line under the search box shows how seek read your query, for example `"report" · PDF files · over 10 MB · changed this week`.
+
+To search for one of the shorthand words itself, put a `'` in front: `'today`. The older `key:value` forms (`ext:pdf`, `size:>10mb`, `mod:<7d`, `in:E:\work`) still work. In a shell, quote `>` and `<` so they aren't treated as redirects: `seek find report '>10mb'`.
 
 ## Keys
 
