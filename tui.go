@@ -957,7 +957,7 @@ func (m *model) effectiveSort() SortMode {
 
 func (m model) helpView() string {
 	k := func(key, desc string) string {
-		return "  " + sKey.Render(fmt.Sprintf("%-14s", key)) + sDim.Render(desc)
+		return "  " + sKey.Render(fmt.Sprintf("%-18s", key)) + sDim.Render(desc)
 	}
 	sec := func(s string) string { return "\n " + sPaneTitle.Render(s) }
 	lines := []string{
@@ -973,6 +973,10 @@ func (m model) helpView() string {
 		k("'foo  ^foo  foo$", "exactly foo / name starts with foo / ends with foo   ('today = the word)"),
 		k("!foo", "exclude paths containing foo"),
 		k("", "the line under the search box shows how seek read your query"),
+		sec("Result colors"),
+		"  " + legend(),
+		"  " + sAccent.Render("▌") + sDim.Render(" selected   ") + sDim.Render("dim text after a name = the folder it's in   ") +
+			sMatch.Render("orange") + sDim.Render(" = letters that matched"),
 		sec("Keys"),
 		k("↑ ↓ / ^p ^n", "move           pgup pgdn  page"),
 		k("enter", "open with default app (click a selected row too)"),
@@ -990,6 +994,25 @@ func (m model) helpView() string {
 		"  " + sFaint.Render("press any key to close"),
 	}
 	return drawBox("seek · help", "", strings.Split(strings.Join(lines, "\n"), "\n"), m.w, m.h, true)
+}
+
+var sAccent = lipgloss.NewStyle().Foreground(cAccent)
+
+// legend renders each result symbol in its own color, from the same
+// categories the result rows use, so it can't drift out of date.
+func legend() string {
+	items := []struct {
+		c     category
+		label string
+	}{
+		{catDir, "folder"}, {catCode, "code"}, {catDoc, "document"}, {catImage, "image"},
+		{catMedia, "audio/video"}, {catArchive, "archive"}, {catExec, "program"}, {catOther, "other"},
+	}
+	var parts []string
+	for _, it := range items {
+		parts = append(parts, lipgloss.NewStyle().Foreground(it.c.color).Render(it.c.glyph+" "+it.label))
+	}
+	return strings.Join(parts, "   ")
 }
 
 // ---------- drawing helpers ----------

@@ -61,6 +61,28 @@ To search for one of the shorthand words itself, put a `'` in front: `'today`. T
 `ctrl+s` sort (relevance/newest/largest) · `ctrl+x` regex (content mode) · `ctrl+t` preview ·
 `shift+↑↓` scroll preview · `ctrl+r` reindex · `F1` help · `esc` clear/quit. Mouse wheel and click work too.
 
+## Reading the results
+
+Each row starts with a symbol, and its color shows what kind of item it is:
+
+| symbol | color | kind |
+|---|---|---|
+| `▸` | blue, bold | folder |
+| `‹›` | green | code and config (`.go`, `.py`, `.js`, `.json`, `.yaml`, …) |
+| `≡` | yellow | documents and text (`.pdf`, `.docx`, `.txt`, `.md`, `.log`, `.csv`, …) |
+| `◩` | pink | images (`.png`, `.jpg`, `.heic`, `.svg`, …) |
+| `♪` | purple | audio and video (`.mp3`, `.flac`, `.mp4`, `.mkv`, …) |
+| `▣` | red-orange | archives and disk images (`.zip`, `.7z`, `.iso`, …) |
+| `⚙` | red | programs (`.exe`, `.msi`, `.dll`, shortcuts, …) |
+| `·` | grey | anything else |
+
+The same groups power the `is:` filters, so `is:image` finds everything shown with `◩`. The rest of a row:
+
+- **`▌` and a highlighted background** mark the selected row.
+- **Dim text after the name** is the folder the item is in, shortened from the left with `…`.
+- **Orange letters** are the ones that matched your search.
+- **On the right** are the size and how long ago the item changed. Widen the terminal or hide the preview with `ctrl+t` if they're cut off.
+
 ## Keeping the index up to date
 
 On Windows, the index updates itself while seek is open. It watches each drive for files being created, deleted, renamed or modified, applies changes about once a second, and shows **● live** in the header. Your selection stays put when results refresh.
