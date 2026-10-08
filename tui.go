@@ -893,7 +893,9 @@ func (m *model) effectiveSort() SortMode {
 }
 
 func (m model) helpView() string {
-	k := func(key, desc string) string { return "  " + sKey.Render(fmt.Sprintf("%-14s", key)) + sDim.Render(desc) }
+	k := func(key, desc string) string {
+		return "  " + sKey.Render(fmt.Sprintf("%-14s", key)) + sDim.Render(desc)
+	}
 	sec := func(s string) string { return "\n " + sPaneTitle.Render(s) }
 	lines := []string{
 		sec("Search syntax"),

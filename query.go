@@ -39,9 +39,11 @@ type Query struct {
 	Err      string
 }
 
-func (q *Query) HasTerms() bool   { return len(q.Terms) > 0 }
-func (q *Query) Text() string     { return strings.Join(q.Raw, " ") }
-func (q *Query) HasFilters() bool { return len(q.Exts) > 0 || q.OnlyDirs || q.OnlyFile || q.MinSize > 0 || q.MaxSize >= 0 || q.ModAfter != 0 || q.ModBefor != 0 || len(q.In) > 0 }
+func (q *Query) HasTerms() bool { return len(q.Terms) > 0 }
+func (q *Query) Text() string   { return strings.Join(q.Raw, " ") }
+func (q *Query) HasFilters() bool {
+	return len(q.Exts) > 0 || q.OnlyDirs || q.OnlyFile || q.MinSize > 0 || q.MaxSize >= 0 || q.ModAfter != 0 || q.ModBefor != 0 || len(q.In) > 0
+}
 
 func normSep(s string) string {
 	if os.PathSeparator == '\\' {

@@ -4,13 +4,19 @@ Fast file search and indexing with a terminal UI, written in Go. The command is 
 
 ## Install
 
+Needs Go 1.24 or newer. There are no C dependencies, so it builds the same way on Windows, macOS and Linux (x86-64 and ARM64).
+
 ```bash
 git clone https://github.com/ItsFurai/Seek-CLI.git
 cd Seek-CLI
 go build -ldflags="-s -w" -o seek.exe .
 ```
 
-Then put the folder on your PATH.
+Then put the folder on your PATH. On macOS and Linux, build with `-o seek` instead of `-o seek.exe`.
+
+Platform notes:
+- With no arguments, `seek index` indexes every fixed drive on Windows and your home folder on macOS and Linux.
+- On Linux, copying a path (`ctrl+y`) needs `xclip`, `xsel` or `wl-clipboard` installed.
 
 ## Usage
 

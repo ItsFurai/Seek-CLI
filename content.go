@@ -73,6 +73,7 @@ func newMatcher(pattern string, useRegex bool) (*grepMatcher, error) {
 	}
 	return &grepMatcher{lower: true, lit: asciiLower([]byte(pattern))}, nil
 }
+
 // Grep searches file contents of every entry that passes q's filters.
 // emit is called with batches of hits (from a single goroutine).
 func Grep(ctx context.Context, ix *Index, q *Query, pattern string, useRegex bool, maxHits int,
