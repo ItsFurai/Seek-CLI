@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-08
+
 ### Added
 - **Simpler query shorthands** that need no `key:` prefix: `.pdf` for file types, `>10mb` / `<1kb` / `1mb..1gb` for size, `<7d` / `>1y` for dates, `today`, `yesterday`, `week`, `month` and `year`, `photos/` for folders, and `E:\work` or `~\Documents` to search inside a folder.
 - **File kinds:** `is:image`, `is:video`, `is:audio`, `is:doc`, `is:code`, `is:archive` and `is:app`, using the same groups as the result colors.
@@ -42,6 +44,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Prebuilt downloads for Windows, macOS and Linux (x86-64 and ARM64) with checksums.
 - Works with Go 1.24 or newer, and CI builds and tests on Windows, macOS and Linux.
 
-[Unreleased]: https://github.com/ItsFurai/Seek-CLI/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ItsFurai/Seek-CLI/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ItsFurai/Seek-CLI/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ItsFurai/Seek-CLI/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ItsFurai/Seek-CLI/releases/tag/v0.1.0
