@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 - Long keys on the help screen no longer run into their descriptions.
+- On Windows, files changed in the first moments after seek started could be missed by live updates. Watching now begins before startup finishes.
 
 ## [0.3.0] - 2026-10-08
 

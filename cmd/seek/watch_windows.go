@@ -9,9 +9,30 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// watchRoots starts one recursive ReadDirectoryChangesW watch per root.
-// Changed paths go to out; if the kernel buffer overflows (or out is full)
-// a signal goes to overflow so the caller can rescan.
+const watchMask = windows.FILE_NOTIFY_CHANGE_FILE_NAME | windows.FILE_NOTIFY_CHANGE_DIR_NAME |
+	windows.FILE_NOTIFY_CHANGE_SIZE | windows.FILE_NOTIFY_CHANGE_LAST_WRITE
+
+// dirWatch is one recursive ReadDirectoryChangesW watch using overlapped I/O.
+type dirWatch struct {
+	h    windows.Handle
+	root string
+	buf  []byte
+	ov   windows.Overlapped
+}
+
+// issue queues the next read. Windows only records changes while a read is
+// queued, so the first one must be issued before watchRoots returns.
+func (w *dirWatch) issue() error {
+	err := windows.ReadDirectoryChanges(w.h, &w.buf[0], uint32(len(w.buf)), true, watchMask, nil, &w.ov, 0)
+	if err == windows.ERROR_IO_PENDING {
+		return nil
+	}
+	return err
+}
+
+// watchRoots starts one recursive watch per root. Changed paths go to out;
+// if the kernel buffer overflows (or out is full) a signal goes to overflow
+// so the caller can rescan. Watching has begun by the time it returns.
 func watchRoots(roots []string, out chan<- string, overflow chan<- struct{}) bool {
 	started := 0
 	for _, root := range roots {
@@ -25,21 +46,31 @@ func watchRoots(roots []string, out chan<- string, overflow chan<- struct{}) boo
 		}
 		h, err := windows.CreateFile(p, windows.FILE_LIST_DIRECTORY,
 			windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
-			nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
+			nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OVERLAPPED, 0)
 		if err != nil {
 			continue
 		}
+		ev, err := windows.CreateEvent(nil, 1, 0, nil)
+		if err != nil {
+			windows.CloseHandle(h)
+			continue
+		}
+		w := &dirWatch{h: h, root: root, buf: make([]byte, 256<<10)}
+		w.ov.HEvent = ev
+		if err := w.issue(); err != nil {
+			windows.CloseHandle(ev)
+			windows.CloseHandle(h)
+			continue
+		}
 		started++
-		go watchHandle(h, root, out, overflow)
+		go w.loop(out, overflow)
 	}
 	return started > 0
 }
 
-func watchHandle(h windows.Handle, root string, out chan<- string, overflow chan<- struct{}) {
-	defer windows.CloseHandle(h)
-	const mask = windows.FILE_NOTIFY_CHANGE_FILE_NAME | windows.FILE_NOTIFY_CHANGE_DIR_NAME |
-		windows.FILE_NOTIFY_CHANGE_SIZE | windows.FILE_NOTIFY_CHANGE_LAST_WRITE
-	buf := make([]byte, 256<<10)
+func (w *dirWatch) loop(out chan<- string, overflow chan<- struct{}) {
+	defer windows.CloseHandle(w.h)
+	defer windows.CloseHandle(w.ov.HEvent)
 	signal := func() {
 		select {
 		case overflow <- struct{}{}:
@@ -48,30 +79,36 @@ func watchHandle(h windows.Handle, root string, out chan<- string, overflow chan
 	}
 	for {
 		var n uint32
-		err := windows.ReadDirectoryChanges(h, &buf[0], uint32(len(buf)), true, mask, &n, nil, 0)
-		if err != nil {
-			if err == windows.ERROR_NOTIFY_ENUM_DIR {
-				signal()
-				continue
-			}
-			return // volume gone or handle closed
-		}
-		if n == 0 { // too many changes to fit in the buffer
+		err := windows.GetOverlappedResult(w.h, &w.ov, &n, true)
+		switch {
+		case err == windows.ERROR_NOTIFY_ENUM_DIR:
 			signal()
-			continue
+		case err != nil:
+			return // volume gone or handle closed
+		case n == 0: // too many changes to fit in the buffer
+			signal()
+		default:
+			w.dispatch(n, out, signal)
 		}
-		for off := uint32(0); off < n; {
-			info := (*windows.FileNotifyInformation)(unsafe.Pointer(&buf[off]))
-			name := windows.UTF16ToString(unsafe.Slice(&info.FileName, info.FileNameLength/2))
-			select {
-			case out <- filepath.Join(root, name):
-			default:
-				signal() // consumer is behind; a rescan will catch up
-			}
-			if info.NextEntryOffset == 0 {
-				break
-			}
-			off += info.NextEntryOffset
+		windows.ResetEvent(w.ov.HEvent)
+		if w.issue() != nil {
+			return
 		}
+	}
+}
+
+func (w *dirWatch) dispatch(n uint32, out chan<- string, signal func()) {
+	for off := uint32(0); off < n; {
+		info := (*windows.FileNotifyInformation)(unsafe.Pointer(&w.buf[off]))
+		name := windows.UTF16ToString(unsafe.Slice(&info.FileName, info.FileNameLength/2))
+		select {
+		case out <- filepath.Join(w.root, name):
+		default:
+			signal() // consumer is behind; a rescan will catch up
+		}
+		if info.NextEntryOffset == 0 {
+			return
+		}
+		off += info.NextEntryOffset
 	}
 }
