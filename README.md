@@ -1,106 +1,168 @@
-# Seek-CLI
+<div align="center">
 
-Fast file search and indexing with a terminal UI, written in Go. The command is `seek`.
+# seek
+
+**Instant file search for your terminal.**
+Fuzzy-find any file across all your drives in milliseconds, search inside files, and preview them, all without leaving the keyboard.
+
+[![CI](https://github.com/ItsFurai/Seek-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/ItsFurai/Seek-CLI/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ItsFurai/Seek-CLI)](https://github.com/ItsFurai/Seek-CLI/releases/latest)
+[![Go version](https://img.shields.io/github/go-mod/go-version/ItsFurai/Seek-CLI)](go.mod)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ItsFurai/Seek-CLI)](https://goreportcard.com/report/github.com/ItsFurai/Seek-CLI)
+[![License: MIT](https://img.shields.io/github/license/ItsFurai/Seek-CLI)](LICENSE)
+
+<img src="docs/screenshot.svg" alt="seek searching for reports changed this week, with a syntax-highlighted preview of report.go" width="900">
+
+[Install](#install) · [Usage](#usage) · [Search syntax](#search-syntax) · [Keys](#keys) · [How it works](#how-it-works) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+
+</div>
+
+## Features
+
+- **Fast.** Searches over a million files as you type, in about 20 ms per keystroke.
+- **Fuzzy matching.** `rprt` finds `report`. Matches in the file name rank above matches in folder names.
+- **Plain-language filters.** `.pdf >10mb week` means PDF files over 10 MB changed this week. The search box shows how it read your query.
+- **Search inside files.** Press `tab` for a parallel grep with smart case and optional regex. Results stream in while it searches.
+- **Preview pane.** Syntax-highlighted code, folder listings, and content matches with the matching line in view.
+- **Always up to date.** On Windows the index updates live as files change; `seek watch` keeps it current when the UI is closed.
+- **Scriptable.** `seek find` and `seek grep` print plain results for pipes and scripts.
+- **One small binary.** About 8 MB, no runtime or C dependencies, for Windows, macOS and Linux on x86-64 and ARM64.
 
 ## Install
 
-**Download:** get a ready-to-run build for Windows, macOS or Linux from [Releases](https://github.com/ItsFurai/Seek-CLI/releases/latest), unzip it, and put the folder on your PATH. On macOS, run `xattr -d com.apple.quarantine seek` the first time, because the builds aren't signed.
+### Download a release
 
-**Build from source:** needs Go 1.24 or newer. There are no C dependencies, so it builds the same way on Windows, macOS and Linux (x86-64 and ARM64).
+Get a build for your system from the [latest release](https://github.com/ItsFurai/Seek-CLI/releases/latest), unzip it, and put the folder on your `PATH`. Each release includes `checksums.txt` to verify the download.
+
+On macOS, the builds aren't code-signed, so clear the quarantine flag once:
+
+```bash
+xattr -d com.apple.quarantine seek
+```
+
+### With Go
+
+Needs Go 1.24 or newer:
+
+```bash
+go install github.com/ItsFurai/Seek-CLI/cmd/seek@latest
+```
+
+### From source
 
 ```bash
 git clone https://github.com/ItsFurai/Seek-CLI.git
 cd Seek-CLI
-go build -ldflags="-s -w" -o seek.exe .
+go build -o seek ./cmd/seek
 ```
 
-Then put the folder on your PATH. On macOS and Linux, build with `-o seek` instead of `-o seek.exe`.
-
-Platform notes:
-- With no arguments, `seek index` indexes every fixed drive on Windows and your home folder on macOS and Linux.
-- On Linux, copying a path (`ctrl+y`) needs `xclip`, `xsel` or `wl-clipboard` installed.
+On Windows, use `-o seek.exe`.
 
 ## Usage
 
+Run `seek`. The first launch builds the index: every fixed drive on Windows, or your home folder on macOS and Linux. That takes about a minute for a million files, and you can watch the progress in the header.
+
+```bash
+seek                      # open the search UI
+seek report .pdf          # open it with a query already typed
+seek -c TODO .go          # open it in content-search mode
+seek find budget .xlsx    # print matching paths, for scripts
+seek grep "api_key" .env  # print matching lines from inside files
+seek index [folders...]   # rebuild the index (optionally for specific folders)
+seek watch                # keep the index current in the background
+seek stats                # show what's indexed
 ```
-seek                    # open the UI (first run builds the index automatically)
-seek report ext:pdf     # open the UI with a query already typed
-seek -c TODO in:E:\work # open the UI in content (grep) mode
-cd (seek pick)          # PowerShell: pick a folder and cd into it
-seek index [dirs...]    # (re)build the index; default is every fixed drive
-seek find <query>       # print matching paths (scriptable)
-seek grep <text> ext:go # search inside files from the shell
-seek stats
-seek watch              # keep the index current in the background (Ctrl+C to stop)
+
+To jump to a folder from PowerShell, pick it in the UI and press `enter`:
+
+```powershell
+cd (seek pick)
 ```
 
-## Query syntax
+## Search syntax
 
-Type words to fuzzy-match file names. Add any of these to narrow the results down:
+Type words to fuzzy-match file names, and add any of these to narrow the results down:
 
-| type | meaning |
+| Type | Meaning |
 |---|---|
-| `report budget` | fuzzy words; all must match, and matches in the file name rank higher |
+| `report budget` | fuzzy words; all must match |
 | `.pdf` · `.jpg,.png` | file type |
-| `is:image` | a whole kind: `image` `video` `audio` `doc` `code` `archive` `app` (or `dir`, `file`) |
+| `is:image` | a whole kind: `image` `video` `audio` `doc` `code` `archive` `app`, or `dir` / `file` |
 | `>10mb` · `<1kb` · `1mb..1gb` | size |
 | `today` · `yesterday` · `week` · `month` · `year` | changed today, yesterday, or in the last 7 / 30 / 365 days |
 | `<7d` · `>1y` | changed in the last 7 days / not changed for a year (`min h d w mo y`) |
 | `photos/` | folders named like "photos" |
-| `E:\work` · `~\Documents` | only inside that folder |
+| `E:\work` · `~/Documents` | only inside that folder |
 | `in:projects` | anywhere under a folder whose name contains "projects" |
 | `'foo` · `^foo` · `foo$` · `!foo` | exact text · name starts with · path ends with · exclude |
 
-The line under the search box shows how seek read your query, for example `"report" · PDF files · over 10 MB · changed this week`.
+The bottom border of the search box spells out how seek read your query, for example `"report" · PDF files · over 10 MB · changed this week`.
 
-To search for one of the shorthand words itself, put a `'` in front: `'today`. The older `key:value` forms (`ext:pdf`, `size:>10mb`, `mod:<7d`, `in:E:\work`) still work. In a shell, quote `>` and `<` so they aren't treated as redirects: `seek find report '>10mb'`.
+<details>
+<summary>More details</summary>
+
+- To search for one of the shorthand words itself, put a `'` in front: `'today`.
+- The older `key:value` forms still work: `ext:pdf`, `size:>10mb`, `mod:<7d`, `in:E:\work`.
+- In a shell, quote `>` and `<` so they aren't treated as redirects: `seek find report '>10mb'`.
+- Content search uses smart case: `todo` matches any capitalization, `TODO` matches exactly.
+
+</details>
 
 ## Keys
 
-`↑↓` move · `enter` open · `ctrl+o` reveal in Explorer · `ctrl+y` copy path · `tab` names ↔ contents ·
-`ctrl+s` sort (relevance/newest/largest) · `ctrl+x` regex (content mode) · `ctrl+t` preview ·
-`shift+↑↓` scroll preview · `ctrl+r` reindex · `F1` help · `esc` clear/quit. Mouse wheel and click work too.
+| Key | Action |
+|---|---|
+| `↑` `↓` · `pgup` `pgdn` | move through results |
+| `enter` | open with the default app |
+| `ctrl+o` | reveal in Explorer / Finder |
+| `ctrl+y` | copy the path |
+| `tab` | switch between name search and content search |
+| `ctrl+s` | sort by relevance, newest or largest |
+| `ctrl+x` | toggle regex (content search) |
+| `ctrl+t` | show or hide the preview · `shift+↑↓` scrolls it |
+| `ctrl+r` | rebuild the index |
+| `F1` | help |
+| `esc` | clear the query, then quit |
 
-## Reading the results
+The mouse works too: scroll, click to select, and click a selected row to open it.
+
+### Reading the results
 
 Each row starts with a symbol, and its color shows what kind of item it is:
 
-| symbol | color | kind |
+| Symbol | Color | Kind |
 |---|---|---|
 | `▸` | blue, bold | folder |
 | `‹›` | green | code and config (`.go`, `.py`, `.js`, `.json`, `.yaml`, …) |
-| `≡` | yellow | documents and text (`.pdf`, `.docx`, `.txt`, `.md`, `.log`, `.csv`, …) |
+| `≡` | yellow | documents and text (`.pdf`, `.docx`, `.txt`, `.md`, `.csv`, …) |
 | `◩` | pink | images (`.png`, `.jpg`, `.heic`, `.svg`, …) |
 | `♪` | purple | audio and video (`.mp3`, `.flac`, `.mp4`, `.mkv`, …) |
 | `▣` | red-orange | archives and disk images (`.zip`, `.7z`, `.iso`, …) |
 | `⚙` | red | programs (`.exe`, `.msi`, `.dll`, shortcuts, …) |
 | `·` | grey | anything else |
 
-The same groups power the `is:` filters, so `is:image` finds everything shown with `◩`. The rest of a row:
+The dim text after a name is the folder it's in, orange letters are the ones that matched, and the right side shows the size and how long ago the item changed.
 
-- **`▌` and a highlighted background** mark the selected row.
-- **Dim text after the name** is the folder the item is in, shortened from the left with `…`.
-- **Orange letters** are the ones that matched your search.
-- **On the right** are the size and how long ago the item changed. Widen the terminal or hide the preview with `ctrl+t` if they're cut off.
+## How it works
 
-## Keeping the index up to date
+**Indexing.** A pool of workers reads many folders at once. On Windows each directory listing already includes sizes and dates, so no extra call per file is needed. Paths are sorted and prefix-compressed on disk: about 29 MB for a million entries, stored in `%LOCALAPPDATA%\seek\index.bin` (or the OS cache folder; override it with `SEEK_INDEX`).
 
-On Windows, the index updates itself while seek is open. It watches each drive for files being created, deleted, renamed or modified, applies changes about once a second, and shows **● live** in the header. Your selection stays put when results refresh.
+**Searching.** Every keystroke scores all entries in parallel across your CPU cores. Each core keeps its own top results, which are merged at the end. All paths sit in one block of memory, so there's almost nothing for the garbage collector to scan.
 
-- **On launch:** if the saved index is more than 30 minutes old, seek rescans in the background while you search the old copy. Changes made during the rescan are replayed afterward, so none are lost.
-- **When seek is closed:** run `seek watch` to keep the index file current, so `seek find` and the next launch start fresh. It logs one summary per minute (`-v` for every batch) and saves on Ctrl+C.
-- **macOS and Linux:** there's no equivalent single recursive watch, so seek rescans every 10 minutes while it's running.
-- **Manual rebuild:** `ctrl+r` in the UI, or `seek index`.
-## How it's fast
+**Staying current.** On Windows, seek watches each drive with `ReadDirectoryChangesW` and applies changes in small batches, about once a second. Each update creates a new index version that shares the old one's memory, so searches already running are never disturbed. If changes arrive faster than Windows can report them, seek falls back to a full rescan. An index more than 30 minutes old is rescanned in the background on launch. macOS and Linux have no equivalent single watch for a whole drive, so they rescan every 10 minutes instead.
 
-- **Parallel indexer:** a work-stealing pool of goroutines runs `ReadDir` on many folders at once. Windows returns size and modification time with each directory entry, so no extra `stat` call is needed per file.
-- **Compact index:** paths are sorted and prefix-compressed on disk (about 29 MB for 1M entries). In memory they sit in one byte arena, so the garbage collector has almost nothing to scan.
-- **Search:** every keystroke scans all entries across every core and keeps the best results in per-core top-K heaps. That takes about 20 ms for 1M entries.
-- **Live updates:** a new index version shares the old one's path storage and only appends to it, so searches already running are never disturbed. A folder whose timestamp changed isn't rescanned; only new or moved-in folders are walked.
-- **Content search:** a parallel grep first scans each file whole for the literal text and skips files without it. Binary files are skipped, and results stream into the UI while the search runs.
+**Content search.** Each candidate file is first scanned once for the literal text, and files without it are skipped. Binary files are skipped too, and matches stream into the UI while the search continues.
 
-Build: `go build -ldflags="-s -w" -o seek.exe .` · Index location: `%LOCALAPPDATA%\seek\index.bin` (override with `SEEK_INDEX`).
+## Platform notes
+
+- **Windows** gets every feature, including live index updates.
+- **macOS and Linux** rescan periodically instead of updating live, and `seek index` defaults to your home folder.
+- **Linux:** copying a path (`ctrl+y`) needs `xclip`, `xsel` or `wl-clipboard`.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test and submit changes, and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © 2026 Basel Elgamal

@@ -30,8 +30,6 @@ var (
 	sErr       = lipgloss.NewStyle().Foreground(cErr)
 	sOK        = lipgloss.NewStyle().Foreground(cOK)
 	sPaneTitle = lipgloss.NewStyle().Foreground(cAccent).Bold(true)
-	sBox       = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cBorder)
-	sBoxFocus  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cAccent)
 )
 
 type category struct {

@@ -158,7 +158,7 @@ func grepFile(ctx context.Context, path string, idx uint32, match *grepMatcher, 
 	if match.lower {
 		hay = asciiLower(data)
 	}
-	if match.lit != nil && bytes.Index(hay, match.lit) < 0 {
+	if match.lit != nil && !bytes.Contains(hay, match.lit) {
 		return // fast reject: one SIMD scan over the whole file
 	}
 	const perFile = 100

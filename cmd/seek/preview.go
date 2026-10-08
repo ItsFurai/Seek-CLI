@@ -28,8 +28,12 @@ const previewReadLimit = 4 << 20
 
 func previewKey(path string, line int) string { return fmt.Sprintf("%s:%d", path, line) }
 
+// previewSource maps a displayed path to the file to read; tests swap it to show demo data.
+var previewSource = func(path string) string { return path }
+
 func loadPreview(path string, isDir bool, focusLine int) previewData {
 	pd := previewData{key: previewKey(path, focusLine), focus: -1}
+	path = previewSource(path)
 	if isDir {
 		return previewDir(path, pd)
 	}

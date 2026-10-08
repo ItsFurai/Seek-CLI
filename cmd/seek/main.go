@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -50,6 +51,13 @@ Index file: %s  (override with SEEK_INDEX)
 
 // version is set at build time: -ldflags "-X main.version=v1.2.3"
 var version = "dev"
+
+func init() {
+	// `go install …@v0.4.0` records the module version; use it when not stamped by a release build.
+	if bi, ok := debug.ReadBuildInfo(); ok && version == "dev" && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = bi.Main.Version
+	}
+}
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {

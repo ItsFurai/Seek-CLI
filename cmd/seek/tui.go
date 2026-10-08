@@ -1104,6 +1104,8 @@ func spinner(frame int) string {
 
 func fmtDur(d time.Duration) string {
 	switch {
+	case d < 10*time.Microsecond:
+		return "<10µs"
 	case d < time.Millisecond:
 		return fmt.Sprintf("%dµs", d.Microseconds())
 	case d < time.Second:

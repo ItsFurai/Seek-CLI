@@ -1,0 +1,48 @@
+name: Bug report
+description: Something doesn't work the way it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report this! For security problems, please use the [private reporting form](https://github.com/ItsFurai/Seek-CLI/security/advisories/new) instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: I searched for `report .pdf week` and expected…, but…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `seek`
+        2. Type `…`
+        3. Press `…`
+  - type: input
+    id: version
+    attributes:
+      label: seek version
+      description: Output of `seek --version`
+      placeholder: seek v0.3.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux, Other]
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal
+      placeholder: Windows Terminal, iTerm2, GNOME Terminal…
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, error messages, or the size of your index (`seek stats`).

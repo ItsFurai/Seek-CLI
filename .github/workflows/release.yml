@@ -29,7 +29,7 @@ jobs:
             name="seek-${VERSION}-${os}-${arch}"
             bin=seek; [ "$os" = windows ] && bin=seek.exe
             mkdir -p "build/$name"
-            GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "build/$name/$bin" .
+            GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "build/$name/$bin" ./cmd/seek
             cp README.md LICENSE "build/$name/"
             if [ "$os" = windows ]; then
               (cd build && zip -qr "../dist/$name.zip" "$name")
@@ -42,4 +42,10 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/* --title "${{ github.ref_name }}" --generate-notes
+        run: |
+          # Release notes = this version's CHANGELOG.md section, followed by GitHub's generated notes.
+          awk -v v="${GITHUB_REF_NAME#v}" '
+            index($0, "## [" v "]") == 1 { f = 1; next }
+            f && (index($0, "## [") == 1 || (index($0, "[") == 1 && index($0, "]: ") > 0)) { exit }
+            f' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes

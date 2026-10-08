@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 - A color legend for result rows on the `F1` help screen and in the README.
+- Install with `go install github.com/ItsFurai/Seek-CLI/cmd/seek@latest`, which now produces a binary named `seek`. `seek --version` reports the installed version.
+- A contributing guide, code of conduct, security policy, issue and pull request templates, and Dependabot updates.
+- A README screenshot, generated from demo data by a test so it can be refreshed.
+
+### Changed
+- The source moved to `cmd/seek`. Build from source with `go build -o seek ./cmd/seek`.
+- Release notes now come from this changelog.
+- CI also runs staticcheck.
 
 ### Fixed
 - Long keys on the help screen no longer run into their descriptions.
