@@ -31,6 +31,7 @@ seek index [dirs...]    # (re)build the index; default is every fixed drive
 seek find <query>       # print matching paths (scriptable)
 seek grep <text> ext:go # search inside files from the shell
 seek stats
+seek watch              # keep the index current in the background (Ctrl+C to stop)
 ```
 
 ## Query syntax
@@ -51,11 +52,20 @@ seek stats
 `ctrl+s` sort (relevance/newest/largest) · `ctrl+x` regex (content mode) · `ctrl+t` preview ·
 `shift+↑↓` scroll preview · `ctrl+r` reindex · `F1` help · `esc` clear/quit. Mouse wheel and click work too.
 
+## Keeping the index up to date
+
+On Windows, the index updates itself while seek is open. It watches each drive for files being created, deleted, renamed or modified, applies changes about once a second, and shows **● live** in the header. Your selection stays put when results refresh.
+
+- **On launch:** if the saved index is more than 30 minutes old, seek rescans in the background while you search the old copy. Changes made during the rescan are replayed afterward, so none are lost.
+- **When seek is closed:** run `seek watch` to keep the index file current, so `seek find` and the next launch start fresh. It logs one summary per minute (`-v` for every batch) and saves on Ctrl+C.
+- **macOS and Linux:** there's no equivalent single recursive watch, so seek rescans every 10 minutes while it's running.
+- **Manual rebuild:** `ctrl+r` in the UI, or `seek index`.
 ## How it's fast
 
 - **Parallel indexer:** a work-stealing pool of goroutines runs `ReadDir` on many folders at once. Windows returns size and modification time with each directory entry, so no extra `stat` call is needed per file.
 - **Compact index:** paths are sorted and prefix-compressed on disk (about 29 MB for 1M entries). In memory they sit in one byte arena, so the garbage collector has almost nothing to scan.
 - **Search:** every keystroke scans all entries across every core and keeps the best results in per-core top-K heaps. That takes about 20 ms for 1M entries.
+- **Live updates:** a new index version shares the old one's path storage and only appends to it, so searches already running are never disturbed. A folder whose timestamp changed isn't rescanned; only new or moved-in folders are walked.
 - **Content search:** a parallel grep first scans each file whole for the literal text and skips files without it. Binary files are skipped, and results stream into the UI while the search runs.
 
 Build: `go build -ldflags="-s -w" -o seek.exe .` · Index location: `%LOCALAPPDATA%\seek\index.bin` (override with `SEEK_INDEX`).

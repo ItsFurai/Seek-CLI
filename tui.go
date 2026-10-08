@@ -35,9 +35,11 @@ var prog *tea.Program
 
 type searchDoneMsg struct {
 	seq   int
+	ix    *Index
 	hits  []Hit
 	total int
 	took  time.Duration
+	keep  string // path to keep selected (live refresh)
 }
 type contentStartMsg struct{ seq int }
 type contentBatchMsg struct {
@@ -50,11 +52,13 @@ type contentDoneMsg struct {
 	took time.Duration
 }
 type previewMsg struct{ pd previewData }
-type indexDoneMsg struct {
-	ix   *Index
-	err  error
-	took time.Duration
+type indexStartMsg struct{ progress *atomic.Int64 }
+type indexUpdatedMsg struct {
+	ix      *Index
+	changes int
+	full    bool
 }
+type indexErrMsg struct{ err error }
 type tickMsg struct{}
 type flashClearMsg struct{ seq int }
 
@@ -70,11 +74,15 @@ type model struct {
 	q     *Query
 	seq   int
 
-	hits  []Hit
-	total int
-	took  time.Duration
+	// Each result list remembers the index version its Idx values refer to,
+	// because live updates swap m.ix underneath them.
+	hits   []Hit
+	hitsIx *Index
+	total  int
+	took   time.Duration
 
 	chits    []ContentHit
+	chitsIx  *Index
 	cScanned *atomic.Int64
 	cCancel  context.CancelFunc
 	cRunning bool
@@ -89,7 +97,9 @@ type model struct {
 	pvScroll    int
 	pvCache     map[string]previewData
 	pvOrder     []string
+	pvStale     bool
 
+	upd         *Updater
 	indexing    bool
 	idxProgress *atomic.Int64
 	idxStart    time.Time
@@ -106,7 +116,7 @@ type model struct {
 	initCmd tea.Cmd
 }
 
-func newModel(ix *Index, initial string, mode uiMode, pick bool) model {
+func newModel(ix *Index, upd *Updater, initial string, mode uiMode, pick bool) model {
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.Placeholder = "search files…   try: report ext:pdf mod:<30d   ·   tab: search inside files"
@@ -116,12 +126,13 @@ func newModel(ix *Index, initial string, mode uiMode, pick bool) model {
 	ti.SetValue(initial)
 	ti.Focus()
 	m := model{
-		ix: ix, input: ti, mode: mode, showPreview: true, pick: pick,
+		ix: ix, upd: upd, input: ti, mode: mode, showPreview: true, pick: pick,
 		pvCache: map[string]previewData{}, pv: previewData{focus: -1},
-		q: ParseQuery(initial, time.Now()),
+		q: ParseQuery(initial, time.Now()), idxProgress: &atomic.Int64{},
 	}
 	if ix == nil {
-		m.initCmd = m.startIndexCmd(defaultRoots(), defaultExcludes)
+		m.indexing, m.idxStart = true, time.Now() // the updater builds it
+		m.initCmd = m.ensureTick()
 	} else {
 		m.initCmd = m.querySeq(m.seq)
 	}
@@ -129,23 +140,6 @@ func newModel(ix *Index, initial string, mode uiMode, pick bool) model {
 }
 
 func (m model) Init() tea.Cmd { return tea.Batch(textinput.Blink, m.initCmd) }
-
-// startIndexCmd must be called on the model that will be returned (it mutates indexing state via pointer fields).
-func (m *model) startIndexCmd(roots, excludes []string) tea.Cmd {
-	m.indexing = true
-	m.idxProgress = &atomic.Int64{}
-	m.idxStart = time.Now()
-	prog := m.idxProgress
-	run := func() tea.Msg {
-		start := time.Now()
-		ix, err := BuildIndex(roots, excludes, prog)
-		if err == nil {
-			err = ix.Save(indexPath())
-		}
-		return indexDoneMsg{ix: ix, err: err, took: time.Since(start)}
-	}
-	return tea.Batch(run, m.ensureTick())
-}
 
 func (m *model) ensureTick() tea.Cmd {
 	if m.ticking {
@@ -163,7 +157,9 @@ func (m *model) setFlash(s string, isErr bool) tea.Cmd {
 }
 
 // querySeq kicks off a search for the current input.
-func (m *model) querySeq(seq int) tea.Cmd {
+func (m *model) querySeq(seq int) tea.Cmd { return m.querySeqKeep(seq, "") }
+
+func (m *model) querySeqKeep(seq int, keep string) tea.Cmd {
 	m.q = ParseQuery(m.input.Value(), time.Now())
 	if m.ix == nil {
 		return nil
@@ -173,7 +169,7 @@ func (m *model) querySeq(seq int) tea.Cmd {
 		return func() tea.Msg {
 			start := time.Now()
 			hits, total := Search(ix, q, sortMode, nameLimit)
-			return searchDoneMsg{seq: seq, hits: hits, total: total, took: time.Since(start)}
+			return searchDoneMsg{seq: seq, ix: ix, hits: hits, total: total, took: time.Since(start), keep: keep}
 		}
 	}
 	m.cancelContent()
@@ -200,6 +196,7 @@ func (m *model) startContent(seq int) tea.Cmd {
 	m.cRunning = true
 	m.cStart = time.Now()
 	m.cScanned = &atomic.Int64{}
+	m.chitsIx = m.ix
 	ix, q, pat, re, scanned := m.ix, m.q, m.q.Text(), m.regex, m.cScanned
 	go func() {
 		start := time.Now()
@@ -218,20 +215,36 @@ func (m *model) count() int {
 	return len(m.chits)
 }
 
+// listIx is the index version the visible result list refers to.
+func (m *model) listIx() *Index {
+	if m.mode == modeName {
+		return m.hitsIx
+	}
+	return m.chitsIx
+}
+
 // selected returns the current entry and focus line (content mode).
 func (m *model) selected() (*Entry, int) {
-	if m.ix == nil {
+	ix := m.listIx()
+	if ix == nil {
 		return nil, 0
 	}
 	if m.mode == modeName {
 		if m.cursor < len(m.hits) {
-			return &m.ix.Entries[m.hits[m.cursor].Idx], 0
+			return &ix.Entries[m.hits[m.cursor].Idx], 0
 		}
 	} else if m.cursor < len(m.chits) {
 		h := m.chits[m.cursor]
-		return &m.ix.Entries[h.Idx], h.Line
+		return &ix.Entries[h.Idx], h.Line
 	}
 	return nil, 0
+}
+
+func (m *model) selectedPath() string {
+	if e, _ := m.selected(); e != nil {
+		return m.listIx().Path(e)
+	}
+	return ""
 }
 
 func (m *model) previewCmd() tea.Cmd {
@@ -240,9 +253,9 @@ func (m *model) previewCmd() tea.Cmd {
 		m.pv = previewData{focus: -1}
 		return nil
 	}
-	path := m.ix.Path(e)
+	path := m.listIx().Path(e)
 	key := previewKey(path, line)
-	if m.pv.key == key {
+	if m.pv.key == key && !m.pvStale {
 		return nil
 	}
 	if pd, ok := m.pvCache[key]; ok {
@@ -304,26 +317,51 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case indexDoneMsg:
+	case indexStartMsg:
+		m.indexing, m.idxProgress, m.idxStart = true, msg.progress, time.Now()
+		return m, m.ensureTick()
+
+	case indexErrMsg:
 		m.indexing = false
-		if msg.err != nil {
-			return m, m.setFlash("index failed: "+msg.err.Error(), true)
-		}
+		return m, m.setFlash("index: "+msg.err.Error(), true)
+
+	case indexUpdatedMsg:
+		first := m.ix == nil
 		m.ix = msg.ix
-		m.hits, m.chits, m.cursor, m.offset = nil, nil, 0, 0
-		m.pvCache, m.pvOrder, m.pv = map[string]previewData{}, nil, previewData{focus: -1}
-		m.seq++
-		f, d := m.ix.Files()
-		flash := m.setFlash(fmt.Sprintf("indexed %s files and %s folders in %s", commas(f), commas(d), msg.took.Round(time.Millisecond)), false)
-		return m, tea.Batch(flash, m.querySeq(m.seq))
+		var cmds []tea.Cmd
+		if msg.full {
+			m.indexing = false
+			f, d := m.ix.Files()
+			cmds = append(cmds, m.setFlash(fmt.Sprintf("index refreshed: %s files, %s folders in %s",
+				commas(f), commas(d), time.Since(m.idxStart).Round(100*time.Millisecond)), false))
+		}
+		// Changed files may be on screen: drop cached previews, but keep showing
+		// the current one until its replacement loads (no flicker).
+		m.pvCache, m.pvOrder, m.pvStale = map[string]previewData{}, nil, true
+		// Re-run name searches in place; content results stay until the next query.
+		if m.mode == modeName || first {
+			m.seq++
+			cmds = append(cmds, m.querySeqKeep(m.seq, m.selectedPath()))
+		}
+		return m, tea.Batch(cmds...)
 
 	case searchDoneMsg:
 		if msg.seq != m.seq {
 			return m, nil
 		}
-		m.hits, m.total, m.took = msg.hits, msg.total, msg.took
+		m.hits, m.hitsIx, m.total, m.took = msg.hits, msg.ix, msg.total, msg.took
 		m.cursor, m.offset = 0, 0
-		m.pv.key = ""
+		if msg.keep != "" {
+			for i, h := range m.hits {
+				if msg.ix.Path(&msg.ix.Entries[h.Idx]) == msg.keep {
+					m.cursor = i
+					break
+				}
+			}
+			m.clampOffset()
+		} else {
+			m.pv.key = ""
+		}
 		return m, m.previewCmd()
 
 	case contentStartMsg:
@@ -362,9 +400,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			delete(m.pvCache, m.pvOrder[0])
 			m.pvOrder = m.pvOrder[1:]
 		}
-		if e, line := m.selected(); e != nil && previewKey(m.ix.Path(e), line) == msg.pd.key {
-			m.pv = msg.pd
-			m.resetPvScroll()
+		if e, line := m.selected(); e != nil && previewKey(m.listIx().Path(e), line) == msg.pd.key {
+			if !(m.pvStale && m.pv.key == msg.pd.key) {
+				m.resetPvScroll() // keep the scroll position on a live refresh
+			}
+			m.pv, m.pvStale = msg.pd, false
 		}
 		return m, nil
 
@@ -416,7 +456,7 @@ func (m model) openSelected(reveal bool) (tea.Model, tea.Cmd) {
 	if e == nil {
 		return m, nil
 	}
-	path := m.ix.Path(e)
+	path := m.listIx().Path(e)
 	if m.pick {
 		m.picked = path
 		return m, tea.Quit
@@ -479,7 +519,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openSelected(true)
 	case "ctrl+y":
 		if e, line := m.selected(); e != nil {
-			p := m.ix.Path(e)
+			p := m.listIx().Path(e)
 			if line > 0 {
 				p = fmt.Sprintf("%s:%d", p, line)
 			}
@@ -524,15 +564,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pv.key = ""
 		return m, m.previewCmd()
 	case "ctrl+r":
-		if m.indexing {
-			return m, nil
+		if !m.indexing {
+			m.upd.Rebuild()
 		}
-		roots, ex := defaultRoots(), defaultExcludes
-		if m.ix != nil {
-			roots, ex = m.ix.Roots, m.ix.Excludes
-		}
-		m.cancelContent()
-		return m, m.startIndexCmd(roots, ex)
+		return m, nil
 	}
 
 	before := m.input.Value()
@@ -599,8 +634,14 @@ func (m *model) headerView() string {
 	var right string
 	switch {
 	case m.indexing:
-		right = sKey.Render(spinner(m.frame)) + " " + sDim.Render(fmt.Sprintf("indexing… %s items · %s",
+		verb := "refreshing"
+		if m.ix == nil {
+			verb = "indexing"
+		}
+		right = sKey.Render(spinner(m.frame)) + " " + sDim.Render(fmt.Sprintf("%s… %s items · %s ", verb,
 			commas(int(m.idxProgress.Load())), time.Since(m.idxStart).Round(time.Second)))
+	case m.ix != nil && m.upd != nil && m.upd.Live:
+		right = sDim.Render(commas(len(m.ix.Entries))+" items · ") + sOK.Render("● live ")
 	case m.ix != nil:
 		right = sDim.Render(fmt.Sprintf("%s items · indexed %s ", commas(len(m.ix.Entries)), humanAge(m.ix.Created)))
 	}
@@ -682,7 +723,7 @@ func rowStyle(sel bool) lipgloss.Style {
 }
 
 func (m *model) nameRow(i, w int) string {
-	ix := m.ix
+	ix := m.hitsIx
 	e := &ix.Entries[m.hits[i].Idx]
 	sel := i == m.cursor
 	bg := rowStyle(sel)
@@ -723,10 +764,10 @@ func (m *model) nameRow(i, w int) string {
 
 func (m *model) contentRow(i, w int) string {
 	h := m.chits[i]
-	e := &m.ix.Entries[h.Idx]
+	e := &m.chitsIx.Entries[h.Idx]
 	sel := i == m.cursor
 	bg := rowStyle(sel)
-	name := m.ix.Name(e)
+	name := m.chitsIx.Name(e)
 	cat := categoryOf(name, false)
 
 	var b strings.Builder
@@ -805,7 +846,7 @@ func (m *model) previewView(w int) string {
 	var lines []string
 	title, info := "Preview", ""
 	if e != nil {
-		path := m.ix.Path(e)
+		path := m.listIx().Path(e)
 		title = truncLeft(path, max(10, inner-20))
 		meta := humanAge(time.Unix(e.Mod, 0)) + " · " + time.Unix(e.Mod, 0).Format("2006-01-02 15:04")
 		if !e.IsDir() {
@@ -1029,8 +1070,18 @@ func runTUI(ix *Index, initial string, mode uiMode, pick bool) error {
 	if pick {
 		opts = append(opts, tea.WithOutput(os.Stderr))
 	}
-	prog = tea.NewProgram(newModel(ix, initial, mode, pick), opts...)
+	roots, excludes := defaultRoots(), defaultExcludes
+	if ix != nil {
+		roots, excludes = ix.Roots, ix.Excludes
+	}
+	upd := NewUpdater(ix, roots, excludes)
+	prog = tea.NewProgram(newModel(ix, upd, initial, mode, pick), opts...)
+	upd.OnUpdate = func(ix *Index, n int, full bool) { prog.Send(indexUpdatedMsg{ix: ix, changes: n, full: full}) }
+	upd.OnRebuildStart = func(p *atomic.Int64) { prog.Send(indexStartMsg{progress: p}) }
+	upd.OnError = func(err error) { prog.Send(indexErrMsg{err}) }
+	upd.Start()
 	final, err := prog.Run()
+	upd.Close() // saves any unsaved live changes
 	if err != nil {
 		return err
 	}

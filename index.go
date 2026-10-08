@@ -39,6 +39,7 @@ type Index struct {
 	Entries  []Entry
 	arena    []byte // original-case paths
 	lower    []byte // ASCII-lowercased copy, same offsets
+	unsorted bool   // entries added by live updates are appended, not sorted
 }
 
 func (ix *Index) Path(e *Entry) string {
@@ -128,16 +129,18 @@ func (q *dirQueue) done() {
 	q.mu.Unlock()
 }
 
-// BuildIndex walks roots in parallel. progress (may be nil) is incremented per entry.
-func BuildIndex(roots, excludes []string, progress *atomic.Int64) (*Index, error) {
+func excludeSet(excludes []string) map[string]bool {
 	ex := make(map[string]bool, len(excludes))
 	for _, e := range excludes {
 		ex[strings.ToLower(e)] = true
 	}
+	return ex
+}
 
-	q := &dirQueue{}
-	q.cond = sync.NewCond(&q.mu)
+// BuildIndex walks roots in parallel. progress (may be nil) is incremented per entry.
+func BuildIndex(roots, excludes []string, progress *atomic.Int64) (*Index, error) {
 	var all []rawEntry
+	var starts []string
 	for _, r := range roots {
 		abs, err := filepath.Abs(r)
 		if err != nil {
@@ -148,12 +151,22 @@ func BuildIndex(roots, excludes []string, progress *atomic.Int64) (*Index, error
 			continue
 		}
 		all = append(all, rawEntry{path: abs, mod: st.ModTime().Unix(), isDir: true})
-		q.push(abs)
+		starts = append(starts, abs)
 	}
 	if len(all) == 0 {
 		return nil, errors.New("no valid root directories to index")
 	}
+	all = append(all, walkDirs(starts, excludeSet(excludes), progress)...)
+	return fromRaw(all, roots, excludes), nil
+}
 
+// walkDirs returns everything below the given directories (not the directories themselves).
+func walkDirs(starts []string, ex map[string]bool, progress *atomic.Int64) []rawEntry {
+	q := &dirQueue{}
+	q.cond = sync.NewCond(&q.mu)
+	for _, s := range starts {
+		q.push(s)
+	}
 	workers := runtime.NumCPU() * 2
 	if workers < 4 {
 		workers = 4
@@ -164,7 +177,7 @@ func BuildIndex(roots, excludes []string, progress *atomic.Int64) (*Index, error
 		wg.Add(1)
 		go func(w int) {
 			defer wg.Done()
-			local := make([]rawEntry, 0, 4096)
+			local := make([]rawEntry, 0, 256)
 			for {
 				dir, ok := q.pop()
 				if !ok {
@@ -202,13 +215,12 @@ func BuildIndex(roots, excludes []string, progress *atomic.Int64) (*Index, error
 		}(w)
 	}
 	wg.Wait()
-
+	var all []rawEntry
 	for _, r := range results {
 		all = append(all, r...)
 	}
-	return fromRaw(all, roots, excludes), nil
+	return all
 }
-
 func fromRaw(raw []rawEntry, roots, excludes []string) *Index {
 	// Sorted paths give a stable tie-break order and let Save prefix-compress.
 	slices.SortFunc(raw, func(a, b rawEntry) int { return strings.Compare(a.path, b.path) })
@@ -298,10 +310,23 @@ func (ix *Index) Save(path string) error {
 	for _, e := range ix.Excludes {
 		str(e)
 	}
+	// Live updates append entries out of order and leave dead bytes in the
+	// arena, so write in sorted order and count only live path bytes.
+	order := make([]uint32, len(ix.Entries))
+	live := 0
+	for i := range order {
+		order[i] = uint32(i)
+		live += int(ix.Entries[i].Len)
+	}
+	if ix.unsorted {
+		slices.SortFunc(order, func(a, b uint32) int {
+			return strings.Compare(ix.Path(&ix.Entries[a]), ix.Path(&ix.Entries[b]))
+		})
+	}
 	uv(uint64(len(ix.Entries)))
-	uv(uint64(len(ix.arena)))
+	uv(uint64(live))
 	prev := ""
-	for i := range ix.Entries {
+	for _, i := range order {
 		e := &ix.Entries[i]
 		p := ix.Path(e)
 		k := 0

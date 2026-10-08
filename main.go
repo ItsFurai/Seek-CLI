@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/mattn/go-isatty"
@@ -29,6 +31,7 @@ USAGE
                                                      --sort relevance|newest|largest
   seek grep <text> [filters] search inside files    -r  regex   -n N  limit (default 500)
   seek stats                show index information
+  seek watch [-v]           keep the index up to date in the background (Ctrl+C to stop)
   seek --version
 
 QUERY SYNTAX
@@ -67,6 +70,8 @@ func run(args []string) error {
 			return cmdGrep(args[1:])
 		case "stats":
 			return cmdStats()
+		case "watch":
+			return cmdWatch(args[1:])
 		case "pick":
 			return runTUI(loadOrNil(), strings.Join(args[1:], " "), modeName, true)
 		case "-c", "--content":
@@ -239,6 +244,55 @@ func cmdGrep(args []string) error {
 	}, &scanned)
 	fmt.Fprintf(os.Stderr, "%s hits · %s files scanned in %s\n", commas(n), commas(int(scanned.Load())), fmtDur(time.Since(start)))
 	return err
+}
+
+// cmdWatch keeps the saved index current without the UI, so `seek find`
+// and the next UI launch start from fresh data.
+func cmdWatch(args []string) error {
+	flags, _ := splitFlags(args, nil)
+	_, verbose := flags["v"]
+	ix := loadOrNil()
+	roots, excludes := defaultRoots(), defaultExcludes
+	if ix != nil {
+		roots, excludes = ix.Roots, ix.Excludes
+	}
+	logf := func(format string, a ...any) {
+		fmt.Fprintf(os.Stderr, "%s  %s\n", time.Now().Format("15:04:05"), fmt.Sprintf(format, a...))
+	}
+	upd := NewUpdater(ix, roots, excludes)
+	var changes, entries atomic.Int64
+	upd.OnRebuildStart = func(*atomic.Int64) { logf("rescanning %s ...", strings.Join(roots, ", ")) }
+	upd.OnUpdate = func(ix *Index, n int, full bool) {
+		entries.Store(int64(len(ix.Entries)))
+		switch {
+		case full:
+			logf("index rebuilt: %s entries", commas(len(ix.Entries)))
+		case verbose:
+			logf("%d change(s) applied - %s entries", n, commas(len(ix.Entries)))
+		default:
+			changes.Add(int64(n))
+		}
+	}
+	go func() { // one summary line per minute instead of one per batch
+		for range time.Tick(time.Minute) {
+			if n := changes.Swap(0); n > 0 {
+				logf("%s change(s) in the last minute - %s entries", commas(int(n)), commas(int(entries.Load())))
+			}
+		}
+	}()
+	upd.OnError = func(err error) { logf("error: %v", err) }
+	upd.Start()
+	if upd.Live {
+		logf("watching %s for changes (Ctrl+C to stop)", strings.Join(roots, ", "))
+	} else {
+		logf("live watching isn't available on this OS; rescanning every %s", pollRebuild)
+	}
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	<-sig
+	logf("saving ...")
+	upd.Close()
+	return nil
 }
 
 func cmdStats() error {
