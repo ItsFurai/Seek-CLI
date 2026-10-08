@@ -96,19 +96,6 @@ Also:
 - Update the README and the `F1` help screen if you change the search syntax or keys.
 - Keep pull requests focused: one change per PR is much easier to review.
 
-## Updating the README screenshot
-
-The screenshot is generated from a fictional demo folder, so it never shows real files:
-
-```bash
-SEEK_SCREENSHOT=$PWD/docs go test -run TestScreenshot ./cmd/seek
-freeze docs/search.ansi --language ansi --window --padding 20 --margin 0 --border.radius 10 \
-  --background "#1E1E2E" --font.size 14 --line-height 1.25 --output docs/screenshot.svg
-rm docs/search.ansi
-```
-
-[freeze](https://github.com/charmbracelet/freeze) is installed with `go install github.com/charmbracelet/freeze@latest`.
-
 ## Releasing (maintainers)
 
 1. Move the **Unreleased** entries in `CHANGELOG.md` under a new version heading and update the links at the bottom.
